@@ -838,6 +838,8 @@ vllm serve bernhardbrieger/Qwen3.8-27B-GPTQ-Int4 \
   --enable-prefix-caching \
   --reasoning-parser qwen3 \
   --enable-auto-tool-choice \
+  --kv-cache-metrics \
+  --kv-cache-metrics-sample 0.01 \
   --tool-call-parser qwen3_coder
 ```
 
