@@ -399,7 +399,9 @@ vllm serve bernhardbrieger/Qwen3.8-27B-GPTQ-Int4 \
   --kv-cache-dtype fp8 \
   --max-num-seqs 1 \
   --enable-prefix-caching \
-  --reasoning-parser qwen3
+  --reasoning-parser qwen3 \
+  --enable-auto-tool-choice \
+  --tool-call-parser hermes
 ```
 
 ### What these options do
@@ -430,6 +432,12 @@ vllm serve bernhardbrieger/Qwen3.8-27B-GPTQ-Int4 \
 
 - `--reasoning-parser qwen3`
   Parses Qwen `<think>...</think>` output so reasoning is separated from normal response content.
+
+- `--enable-auto-tool-choice`
+  Allows OpenAI-compatible clients such as Cline to send `tool_choice: "auto"` and lets the model decide when to invoke tools.
+
+- `--tool-call-parser hermes`
+  Enables vLLM to parse tool calls emitted by Qwen into OpenAI-compatible structured tool-call responses. This is required for Cline's agent/tool workflow with `tool_choice: "auto"`.
 
 A successful startup ends with lines similar to:
 
@@ -501,10 +509,47 @@ bernhardbrieger/Qwen3.8-27B-GPTQ-Int4
 If the client requires an API key even though the local server does not enforce one, use a harmless placeholder such as:
 
 ```text
-empty
+local
 ```
 
-unless that client requires a different value.
+### Cline configuration
+
+In Cline, select **OpenAI Compatible** and configure:
+
+```text
+Provider:           OpenAI Compatible
+Base URL:           http://<LXC-IP>:8000/v1
+API Key:            local
+Model ID:           bernhardbrieger/Qwen3.8-27B-GPTQ-Int4
+Context Window:     180224
+Max Output Tokens:  16384
+Compact Prompt:     Enabled
+```
+
+For the current server used while validating this guide:
+
+```text
+http://10.0.49.188:8000/v1
+```
+
+Cline sends OpenAI-style tools and may send:
+
+```json
+"tool_choice": "auto"
+```
+
+Therefore the vLLM server **must** be started with both:
+
+```text
+--enable-auto-tool-choice
+--tool-call-parser hermes
+```
+
+Without these flags, Cline can fail with:
+
+```text
+"auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set
+```
 
 ---
 
@@ -623,6 +668,27 @@ Without:
 
 the model may place its `<think>` reasoning directly into the normal `content` field.
 
+### Do not omit tool-calling support when using Cline
+
+Cline uses OpenAI-compatible tool calls and can send:
+
+```json
+"tool_choice": "auto"
+```
+
+The server must include:
+
+```text
+--enable-auto-tool-choice
+--tool-call-parser hermes
+```
+
+Otherwise vLLM returns:
+
+```text
+"auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set
+```
+
 ---
 
 ## 14. Quick repeat-install command sequence
@@ -714,7 +780,9 @@ vllm serve bernhardbrieger/Qwen3.8-27B-GPTQ-Int4 \
   --kv-cache-dtype fp8 \
   --max-num-seqs 1 \
   --enable-prefix-caching \
-  --reasoning-parser qwen3
+  --reasoning-parser qwen3 \
+  --enable-auto-tool-choice \
+  --tool-call-parser hermes
 ```
 
 ---
@@ -738,6 +806,9 @@ Concurrency target: 1 sequence
 API:                OpenAI-compatible
 API port:           8000
 Reasoning parser:   qwen3
+Auto tool choice:   enabled
+Tool-call parser:   hermes
+Cline context:      180224
 ```
 
-This is the configuration that successfully started the vLLM OpenAI-compatible server and returned a working Qwen3.8 chat-completion response on the RTX 5090.
+This is the configuration that successfully started the vLLM OpenAI-compatible server, returned a working Qwen3.8 chat-completion response on the RTX 5090, separated Qwen reasoning correctly, and supported Cline automatic tool calling.
