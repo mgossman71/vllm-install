@@ -23,6 +23,7 @@ The target configuration is:
 - 180224 token maximum context
 - OpenAI-compatible API
 - Qwen reasoning separated from normal response content
+- Cline-compatible automatic tool calling and Plan Mode
 
 ---
 
@@ -401,7 +402,7 @@ vllm serve bernhardbrieger/Qwen3.8-27B-GPTQ-Int4 \
   --enable-prefix-caching \
   --reasoning-parser qwen3 \
   --enable-auto-tool-choice \
-  --tool-call-parser hermes
+  --tool-call-parser qwen3_coder
 ```
 
 ### What these options do
@@ -436,8 +437,8 @@ vllm serve bernhardbrieger/Qwen3.8-27B-GPTQ-Int4 \
 - `--enable-auto-tool-choice`
   Allows OpenAI-compatible clients such as Cline to send `tool_choice: "auto"` and lets the model decide when to invoke tools.
 
-- `--tool-call-parser hermes`
-  Enables vLLM to parse tool calls emitted by Qwen into OpenAI-compatible structured tool-call responses. This is required for Cline's agent/tool workflow with `tool_choice: "auto"`.
+- `--tool-call-parser qwen3_coder`
+  Uses vLLM's Qwen3 Coder tool-call parser for Qwen3.8 tool output. This is the working parser for this model on vLLM 0.29.0 and is required for Cline's agent/tool workflow when Cline sends `tool_choice: "auto"`.
 
 A successful startup ends with lines similar to:
 
@@ -532,17 +533,32 @@ For the current server used while validating this guide:
 http://10.0.49.188:8000/v1
 ```
 
+### Cline Plan Mode
+
+Cline Plan Mode depends on reliable structured tool calling. With this Qwen3.8 model and vLLM 0.29.0, the working parser combination is:
+
+```text
+--reasoning-parser qwen3
+--enable-auto-tool-choice
+--tool-call-parser qwen3_coder
+```
+
+A previous configuration using `--tool-call-parser hermes` allowed basic tool calling, but Cline Plan Mode could stop after a single reasoning response instead of continuing to inspect the project.
+
+Using `qwen3_coder` corrected that behavior in testing.
+
+
 Cline sends OpenAI-style tools and may send:
 
 ```json
 "tool_choice": "auto"
 ```
 
-Therefore the vLLM server **must** be started with both:
+Therefore the vLLM server **must** be started with:
 
 ```text
 --enable-auto-tool-choice
---tool-call-parser hermes
+--tool-call-parser qwen3_coder
 ```
 
 Without these flags, Cline can fail with:
@@ -550,6 +566,25 @@ Without these flags, Cline can fail with:
 ```text
 "auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set
 ```
+
+Do **not** use:
+
+```text
+--tool-call-parser qwen3
+```
+
+on vLLM 0.29.0. `qwen3` is a valid **reasoning parser**, but it is not a registered tool-call parser in this release.
+
+Use:
+
+```text
+--reasoning-parser qwen3
+--tool-call-parser qwen3_coder
+```
+
+instead.
+
+This parser combination also corrected Cline Plan Mode behavior where the model would begin reasoning about inspecting the workspace but stop before issuing file/tool calls.
 
 ---
 
@@ -680,7 +715,7 @@ The server must include:
 
 ```text
 --enable-auto-tool-choice
---tool-call-parser hermes
+--tool-call-parser qwen3_coder
 ```
 
 Otherwise vLLM returns:
@@ -688,6 +723,27 @@ Otherwise vLLM returns:
 ```text
 "auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set
 ```
+
+For vLLM 0.29.0, do **not** substitute:
+
+```text
+--tool-call-parser qwen3
+```
+
+That produces an error similar to:
+
+```text
+KeyError: 'invalid tool call parser: qwen3'
+```
+
+The working parser combination for this setup is:
+
+```text
+--reasoning-parser qwen3
+--tool-call-parser qwen3_coder
+```
+
+If Cline Plan Mode produces one reasoning response such as "Let me explore the workspace first" and then stops without reading files or calling tools, verify that the server was launched with `qwen3_coder`.
 
 ---
 
@@ -782,7 +838,7 @@ vllm serve bernhardbrieger/Qwen3.8-27B-GPTQ-Int4 \
   --enable-prefix-caching \
   --reasoning-parser qwen3 \
   --enable-auto-tool-choice \
-  --tool-call-parser hermes
+  --tool-call-parser qwen3_coder
 ```
 
 ---
@@ -807,7 +863,7 @@ API:                OpenAI-compatible
 API port:           8000
 Reasoning parser:   qwen3
 Auto tool choice:   enabled
-Tool-call parser:   hermes
+Tool-call parser:   qwen3_coder
 Cline context:      180224
 ```
 
