@@ -1,5 +1,7 @@
+```bash
 vi /etc/systemd/system/vllm.service
-
+```
+```bash
 [Unit]
 Description=vLLM Qwen3.8-27B API Server
 After=network-online.target
@@ -31,3 +33,4 @@ RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
+```
